@@ -1,58 +1,18 @@
+# Blender Rendering in AWS
 
-# Welcome to your CDK Python project!
+This project uses the Amazon Web Services (AWS) [Cloud Development Kit (CDK)](https://aws.amazon.com/cdk/) to deploy a serverless pipeline that renders Blender animation projects in the cloud.
 
-This is a blank project for CDK development with Python.
+This project was inspired by and partly based on this AWS [workshop](https://ec2spotworkshops.com/rendering-with-batch.html), including the code [here](https://github.com/awslabs/ec2-spot-workshops/tree/master/content/rendering-with-batch). Building on that project, I've made a number of enhancements.
 
-The `cdk.json` file tells the CDK Toolkit how to execute your app.
+## Architecture
 
-This project is set up like a standard Python project.  The initialization
-process also creates a virtualenv within this project, stored under the `.venv`
-directory.  To create the virtualenv it assumes that there is a `python3`
-(or `python` for Windows) executable in your path with access to the `venv`
-package. If for any reason the automatic creation of the virtualenv fails,
-you can create the virtualenv manually.
+![architecture-diagram](assets/images/architecture.png)
 
-To manually create a virtualenv on MacOS and Linux:
+The basic flow of the pipeline is as follows:
 
-```
-$ python3 -m venv .venv
-```
-
-After the init process completes and the virtualenv is created, you can use the following
-step to activate your virtualenv.
-
-```
-$ source .venv/bin/activate
-```
-
-If you are a Windows platform, you would activate the virtualenv like this:
-
-```
-% .venv\Scripts\activate.bat
-```
-
-Once the virtualenv is activated, you can install the required dependencies.
-
-```
-$ pip install -r requirements.txt
-```
-
-At this point you can now synthesize the CloudFormation template for this code.
-
-```
-$ cdk synth
-```
-
-To add additional dependencies, for example other CDK libraries, just add
-them to your `setup.py` file and rerun the `pip install -r requirements.txt`
-command.
-
-## Useful commands
-
- * `cdk ls`          list all stacks in the app
- * `cdk synth`       emits the synthesized CloudFormation template
- * `cdk deploy`      deploy this stack to your default AWS account/region
- * `cdk diff`        compare deployed stack with current state
- * `cdk docs`        open CDK documentation
-
-Enjoy!
+1. A `.blend` or `.zip` file for a Blender project is uploaded to the input bucket in [Simple Storage Service (S3)](https://aws.amazon.com/s3/).
+1. An [EventBridge](https://aws.amazon.com/eventbridge/) rule triggers a state machine in [Step Functions](https://aws.amazon.com/step-functions/), which executes the following steps:
+   1. A [Lambda](https://aws.amazon.com/lambda/) function extracts the `.zip` file (if required) and writes the project file(s) to [Elastic File System (EFS)](https://aws.amazon.com/efs/).
+   1. A Lambda function analyzes the `.blend` file and determines how many frames need to be rendered.
+   1. A [Batch](https://aws.amazon.com/batch/) job is created and executes container-based tasks in [Fargate](https://aws.amazon.com/fargate/), each of which renders a single frame and writes it to EFS.
+   1. A single-task Batch job is created to stich the frames together into a movie file, which is uploaded to the output bucket in S3.
